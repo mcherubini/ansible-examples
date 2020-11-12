@@ -1,0 +1,51 @@
+---
+ 
+- name: install python 3.7.3 with pyenv
+  hosts: linuxacademy
+  vars:
+    log_user: cloud_user
+  remote_user: "{{log_user}}"
+
+  tasks:
+    - name: install python dependencies
+      become: yes
+      apt: 
+        update_cache: yes
+        pkg:
+          - libffi-dev
+          - build-essential
+          - libncursesw5-dev
+          - libgdbm-dev
+          - libc6-dev
+          - zlib1g-dev
+          - libsqlite3-dev
+          - tk-dev
+          - libssl-dev
+          - openssl
+          - libbz2-dev  
+
+    - name: download pyenv
+      get_url:
+        url: https://pyenv.run
+        dest: /tmp/pyenv.run
+        mode: '755'
+    
+    - name: check if .pyenv exist
+      stat:
+        path: /home/{{log_user}}/.pyenv
+      register: sym
+        
+    - name: run pyenv
+      command: /tmp/pyenv.run
+      when: sym.stat.islnk is not defined
+
+    - name: add pyenv to bashrc
+      blockinfile:
+        path: /home/{{log_user}}/.bashrc
+        block: |
+          export PATH="/home/{{log_user}}/.pyenv/bin:$PATH"
+          eval "$(pyenv init -)"
+          eval "$(pyenv virtualenv-init -)"
+
+    - name: install python 3.7.3 with pyenv
+      command: /home/{{log_user}}/.pyenv/bin/pyenv install 3.7.3
