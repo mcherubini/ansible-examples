@@ -1,0 +1,38 @@
+---
+
+- name: install latest stable redis
+  hosts: linuxacademy
+  vars:
+    - log_user: cloud_user
+    - redis_tmp_path: /tmp/redis-stable.tar.gz
+    - redis_url: http://download.redis.io/redis-stable.tar.gz
+  remote_user: "{{ log_user }}"
+      
+  tasks:
+  - name: Extract redis-stable.tar.tgz into /home/{{log_user}}/redis
+    unarchive:
+      src: " {{ redis_url }}"
+      dest: /home/{{log_user}}/
+      remote_src: yes
+
+  - name: Change the working directory to ~/redis and run the command make
+    command: make
+    args:
+     chdir: /home/{{log_user}}/redis-stable
+  
+  - name: Copy redis-server to usr/local/bin
+    become: yes
+    copy:
+      src: /home/{{log_user}}/redis-stable/src/redis-server
+      dest: /usr/local/bin
+      remote_src: yes
+      mode: '0644'
+
+  - name: Copy redis-cli to usr/local/bin/
+    become: yes
+    copy:
+      src: /home/{{log_user}}/redis-stable/src/redis-cli
+      dest: /usr/local/bin/
+      remote_src: yes
+      mode: '0644'
+
