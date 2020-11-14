@@ -4,35 +4,108 @@
   hosts: linuxacademy
   vars:
     - log_user: cloud_user
-    - redis_tmp_path: /tmp/redis-stable.tar.gz
+    - redis_tmp_path: /tmp/redis-stable
+    - redis_config_path: /etc/redis
     - redis_url: http://download.redis.io/redis-stable.tar.gz
+    - redis_data_path: /var/lib/redis
   remote_user: "{{ log_user }}"
       
   tasks:
-  - name: Extract redis-stable.tar.tgz into /home/{{log_user}}/redis
+  - name: Extract redis-stable.tar.tgz into {{ redis_tmp_path }}
     unarchive:
       src: " {{ redis_url }}"
-      dest: /home/{{log_user}}/
+      dest: /tmp
       remote_src: yes
 
-  - name: Change the working directory to ~/redis and run the command make
+  - name: Change the working directory to {{ redis_tmp_path }} and run the command make
     command: make
     args:
-     chdir: /home/{{log_user}}/redis-stable
+     chdir: "{{ redis_tmp_path }}"
   
   - name: Copy redis-server to usr/local/bin
     become: yes
     copy:
-      src: /home/{{log_user}}/redis-stable/src/redis-server
+      src: "{{ redis_tmp_path }}/src/redis-server"
       dest: /usr/local/bin
       remote_src: yes
-      mode: '0644'
+      mode: '0655'
 
   - name: Copy redis-cli to usr/local/bin/
     become: yes
     copy:
-      src: /home/{{log_user}}/redis-stable/src/redis-cli
+      src: "{{ redis_tmp_path }}/src/redis-cli"
       dest: /usr/local/bin/
       remote_src: yes
-      mode: '0644'
+      mode: '0655'
+
+  - name: add usr/local/bin to bashrc in PATH
+    become: yes
+    blockinfile:
+     marker: "# {mark} ANSIBLE MANAGED BLOCK ADD usr/local/bin to PATH"      
+     path: /home/{{ log_user }}/.bashrc
+     block: |
+      export PATH="/usr/local/bin:$PATH"
+
+  - name: Create redis config directory
+    become: yes
+    file:
+      path: "{{ redis_config_path }}"
+      state: directory
+      owner: "{{log_user}}"
+      group: "{{log_user}}"
+      mode: '0744'
+  
+  - name: Create redis data directory
+    become: yes
+    file:
+      path: "{{ redis_data_path }}"
+      state: directory
+      owner: "{{log_user}}"
+      group: "{{log_user}}"
+      mode: '0744'
+
+  - name: Create redis service file
+    become: yes
+    file:
+      path: /etc/systemd/system/redis.service
+      state: touch
+ 
+  - name: Copy redis config file to {{redis_config_path}}
+    copy:
+      src: "{{ redis_tmp_path }}/redis.conf"
+      dest: "{{ redis_config_path }}/redis.conf"
+      remote_src: yes
+      mode: '0744'
+  
+  - name: Replace supervised option in redis config
+    lineinfile:
+      path: "{{ redis_config_path }}/redis.conf"
+      regexp: '^supervised '
+      line: 'supervised systemd'    
+  
+  - name: Replace dir option in redis config
+    lineinfile:
+     path: "{{redis_config_path}}/redis.conf"
+     regexp: "^dir "
+     line: "dir {{redis_data_path}}"
+
+  - name: create redis service
+    become: yes
+    blockinfile:
+      marker: "# {mark} ANSIBLE MANAGED BLOCK CREATE REDIS SERVICE"
+      path: /etc/systemd/system/redis.service
+      block: |
+        [Unit]
+        Description=Redis In-Memory Data Store
+        After=network.target
+
+        [Service]
+        User={{log_user}}
+        Group={{log_user}}
+        ExecStart=/usr/local/bin/redis-server {{ redis_config_path }}/redis.conf
+        ExecStop=/usr/local/bin/redis-cli shutdown
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
 

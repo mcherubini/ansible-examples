@@ -1,6 +1,6 @@
 ---
  
-- name: install python 3.7.3 with pyenv
+- name: install python 3.7.4 with pyenv
   hosts: linuxacademy
   vars:
     log_user: cloud_user
@@ -41,11 +41,17 @@
 
     - name: add pyenv to bashrc
       blockinfile:
+        marker: "# {mark} ANSIBLE MANAGED BLOCK ADD PYENV TO PATH"
         path: /home/{{log_user}}/.bashrc
         block: |
           export PATH="/home/{{log_user}}/.pyenv/bin:$PATH"
           eval "$(pyenv init -)"
           eval "$(pyenv virtualenv-init -)"
 
-    - name: install python 3.7.3 with pyenv
-      command: /home/{{log_user}}/.pyenv/bin/pyenv install 3.7.3
+    - name: check python versions that are already installed
+      command: /home/{{log_user}}/.pyenv/bin/pyenv versions
+      register: pyenv_versions_installed
+
+    - name: install python 3.7.4 with pyenv if not installed
+      command: /home/{{log_user}}/.pyenv/bin/pyenv install 3.7.4
+      when: pyenv_versions_installed.stdout is not search('3.7.4')
